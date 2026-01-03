@@ -1,0 +1,119 @@
+/* Custom overrides for Next.js */
+/* Note: Template CSS (styles.css, icons.css) are imported via <link> in layout.tsx */
+.page {
+  min-height: 100vh;
+}
+
+.header-link-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.side-menu__icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+}
+
+.dropdown-menu.show {
+  display: block;
+}
+
+/* Auth pages styling */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--default-body-bg-color);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: #e0e0e0;
+}
+
+.divider span {
+  padding: 0 10px;
+  color: #999;
+  font-size: 14px;
+}
+
+.google-btn {
+  border: 1px solid #e0e0e0;
+  padding: 10px;
+  border-radius: 5px;
+  width: 100%;
+  text-align: center;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+
+.google-btn:hover {
+  border-color: #4285f4;
+  background-color: #f9f9f9;
+}
+
+/* Audit progress styles */
+.audit-progress-steps {
+  list-style: none;
+  padding: 0;
+}
+
+.audit-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--default-border);
+}
+
+.audit-step:last-child {
+  border-bottom: none;
+}
+
+.audit-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.audit-step.is-pending .audit-icon-done,
+.audit-step.is-pending .audit-icon-active,
+.audit-step.is-active .audit-icon-done,
+.audit-step.is-active .audit-icon-pending,
+.audit-step.is-done .audit-icon-pending,
+.audit-step.is-done .audit-icon-active {
+  display: none;
+}
+
+.audit-step.is-pending .audit-icon-pending,
+.audit-step.is-active .audit-icon-active,
+.audit-step.is-done .audit-icon-done {
+  display: inline-block;
+}
+
+.audit-icon-done {
+  color: var(--bs-success);
+}
+
+.audit-icon-pending {
+  color: var(--bs-secondary);
+}
