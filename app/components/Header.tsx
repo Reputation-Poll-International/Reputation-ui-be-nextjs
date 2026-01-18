@@ -23,17 +23,41 @@ export default function Header() {
 
   const handleSidebarToggle = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const html = document.documentElement;
     const isMobile = window.innerWidth < 992;
     
     if (isMobile) {
-      const hasDefaultMenuHandler = typeof (window as { toggleSidemenu?: () => void }).toggleSidemenu === 'function';
-      if (hasDefaultMenuHandler) {
+      const overlayId = 'responsive-overlay';
+      const getOverlay = () => document.getElementById(overlayId);
+      const sidebar = document.querySelector('.app-sidebar');
+      const isOpen = html.getAttribute('data-toggled') === 'open';
+
+      const closeMobileSidebar = () => {
+        html.setAttribute('data-toggled', 'close');
+        html.removeAttribute('data-icon-overlay');
+        getOverlay()?.classList.remove('active');
+        sidebar?.classList.remove('open');
+        sidebar?.classList.remove('active');
+      };
+
+      if (isOpen) {
+        closeMobileSidebar();
         return;
       }
-      const currentState = html.getAttribute('data-toggled');
-      // On mobile: toggle between 'open' (visible) and 'close' (hidden)
-      html.setAttribute('data-toggled', currentState === 'open' ? 'close' : 'open');
+
+      html.setAttribute('data-toggled', 'open');
+      sidebar?.classList.add('open');
+
+      let overlay = getOverlay();
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = overlayId;
+        document.body.appendChild(overlay);
+      }
+      overlay.classList.add('active');
+      overlay.addEventListener('click', closeMobileSidebar, { once: true });
+      return;
     } else {
       const isCollapsed = html.getAttribute('data-sidebar') === 'collapsed';
       // On desktop: toggle data-sidebar for collapsed state
@@ -64,7 +88,7 @@ export default function Header() {
               className="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle"
               data-bs-toggle="sidebar"
               href="#"
-              onClick={handleSidebarToggle}
+              onClickCapture={handleSidebarToggle}
             >
               <span></span>
             </a>
