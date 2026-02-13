@@ -23,6 +23,7 @@ export interface UserSubscription {
   started_at: string | null;
   renews_at: string | null;
   payment_method: string | null;
+  billing_interval?: 'monthly' | 'annual' | null;
   plan: UserPlan | null;
 }
 
@@ -72,6 +73,21 @@ export interface SubscriptionResponse {
   status: 'success';
   plans_active: boolean;
   subscription: UserSubscription | null;
+}
+
+export interface CheckoutSessionResponse {
+  status: 'success';
+  mode: 'stripe_checkout' | 'free_plan';
+  message: string;
+  session_id?: string;
+  checkout_url?: string;
+  subscription?: UserSubscription | null;
+}
+
+export interface CheckoutConfirmationResponse {
+  status: 'success';
+  message: string;
+  subscription: UserSubscription;
 }
 
 const API_BASE_URL = (
@@ -130,6 +146,38 @@ async function requestPlans<TSuccess>(
   return data as TSuccess;
 }
 
+async function postPlans<TSuccess, TPayload extends Record<string, unknown>>(
+  path: string,
+  payload: TPayload,
+  fallbackErrorMessage: string
+): Promise<TSuccess> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data: (TSuccess & { status?: string }) | PlanApiErrorResponse | null = null;
+  try {
+    data = (await response.json()) as (TSuccess & { status?: string }) | PlanApiErrorResponse;
+  } catch {
+    throw new Error(fallbackErrorMessage);
+  }
+
+  if (
+    !response.ok ||
+    !data ||
+    (typeof data === 'object' && 'status' in data && data.status === 'error')
+  ) {
+    throw new Error(buildPlanErrorMessage((data as PlanApiErrorResponse) || null, fallbackErrorMessage));
+  }
+
+  return data as TSuccess;
+}
+
 export async function fetchPlans(): Promise<PlansResponse> {
   return requestPlans<PlansResponse>('/plans', 'Unable to load plans right now.');
 }
@@ -164,5 +212,28 @@ export async function fetchUserSubscription(payload: {
   return requestPlans<SubscriptionResponse>(
     `/user/subscription${query}`,
     'Unable to load subscription details right now.'
+  );
+}
+
+export async function createBillingCheckoutSession(payload: {
+  user_id: number;
+  plan_id: number;
+  billing_period: 'monthly' | 'annual';
+}): Promise<CheckoutSessionResponse> {
+  return postPlans<CheckoutSessionResponse, typeof payload>(
+    '/billing/checkout-session',
+    payload,
+    'Unable to start checkout right now.'
+  );
+}
+
+export async function confirmBillingCheckoutSession(payload: {
+  user_id: number;
+  session_id: string;
+}): Promise<CheckoutConfirmationResponse> {
+  return postPlans<CheckoutConfirmationResponse, typeof payload>(
+    '/billing/confirm-checkout-session',
+    payload,
+    'Unable to confirm checkout right now.'
   );
 }

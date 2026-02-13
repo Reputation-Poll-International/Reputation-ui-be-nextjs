@@ -2,9 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
 import { getAuthUser } from '@/lib/auth';
-import { fetchPlans, fetchUserSubscription, type UserPlan } from '@/lib/plans';
+import {
+  confirmBillingCheckoutSession,
+  createBillingCheckoutSession,
+  fetchPlans,
+  fetchUserSubscription,
+  type UserPlan,
+} from '@/lib/plans';
 
 function formatPrice(value: number): string {
   if (Number.isInteger(value)) {
@@ -45,12 +52,18 @@ function toFeatureList(plan: UserPlan): string[] {
 }
 
 export default function PricingPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [plans, setPlans] = useState<UserPlan[]>([]);
   const [plansActive, setPlansActive] = useState(true);
   const [currentPlanId, setCurrentPlanId] = useState<number | null>(null);
+  const [pendingPlanId, setPendingPlanId] = useState<number | null>(null);
+  const [processedSessionId, setProcessedSessionId] = useState<string | null>(null);
+  const [isConfirmingCheckout, setIsConfirmingCheckout] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPlans = async () => {
@@ -92,6 +105,74 @@ export default function PricingPage() {
     void loadPlans();
   }, []);
 
+  useEffect(() => {
+    const checkoutStatus = searchParams.get('checkout');
+    const sessionId = searchParams.get('session_id');
+
+    if (checkoutStatus === 'cancel') {
+      setError('Checkout was cancelled. No payment was processed.');
+      return;
+    }
+
+    if (checkoutStatus !== 'success') {
+      return;
+    }
+
+    const user = getAuthUser();
+    if (!user) {
+      setSuccessMessage('Payment completed. Sign in to finish activating your plan.');
+      return;
+    }
+
+    if (!sessionId) {
+      setSuccessMessage('Payment completed. Your plan activation is in progress.');
+      return;
+    }
+
+    if (processedSessionId === sessionId) {
+      return;
+    }
+
+    let isActive = true;
+    const confirmCheckout = async () => {
+      try {
+        setError(null);
+        setSuccessMessage('Payment completed. Finalizing your plan upgrade...');
+        setIsConfirmingCheckout(true);
+
+        const response = await confirmBillingCheckoutSession({
+          user_id: user.id,
+          session_id: sessionId,
+        });
+
+        if (!isActive) return;
+
+        setCurrentPlanId(response.subscription?.plan?.id ?? null);
+        setProcessedSessionId(sessionId);
+        setSuccessMessage(response.message || 'Your plan has been upgraded successfully.');
+      } catch (err) {
+        if (!isActive) return;
+
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Unable to confirm payment right now.');
+        }
+        setSuccessMessage(null);
+      } finally {
+        if (isActive) {
+          setIsConfirmingCheckout(false);
+        }
+      }
+    };
+
+    void confirmCheckout();
+
+    return () => {
+      isActive = false;
+    };
+  }, [searchParams, processedSessionId]);
+
   const sortedPlans = useMemo(
     () =>
       [...plans].sort((a, b) => {
@@ -114,6 +195,46 @@ export default function PricingPage() {
     if (plan.contact_sales) return '';
     if (plan.price_monthly === 0 && plan.price_yearly === 0) return 'Forever';
     return billingPeriod === 'annual' ? '/year' : '/month';
+  };
+
+  const handlePlanCheckout = async (plan: UserPlan) => {
+    const user = getAuthUser();
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      setError(null);
+      setSuccessMessage(null);
+      setPendingPlanId(plan.id);
+
+      const response = await createBillingCheckoutSession({
+        user_id: user.id,
+        plan_id: plan.id,
+        billing_period: billingPeriod,
+      });
+
+      if (response.mode === 'free_plan') {
+        setCurrentPlanId(plan.id);
+        setSuccessMessage(response.message || 'Your plan has been updated.');
+        return;
+      }
+
+      if (!response.checkout_url) {
+        throw new Error('Checkout URL was not returned by the server.');
+      }
+
+      window.location.href = response.checkout_url;
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Unable to start checkout right now.');
+      }
+    } finally {
+      setPendingPlanId(null);
+    }
   };
 
   return (
@@ -159,12 +280,20 @@ export default function PricingPage() {
         </div>
       )}
 
+      {successMessage && (
+        <div className="alert alert-success" role="alert">
+          {successMessage}
+        </div>
+      )}
+
       <div className="row g-4 justify-content-center">
         {!isLoading &&
           sortedPlans.map((plan) => {
             const isPopular = plan.name.toLowerCase() === 'professional';
             const isCurrent = currentPlanId === plan.id;
             const features = toFeatureList(plan);
+            const selectedPrice =
+              billingPeriod === 'annual' ? plan.price_yearly : plan.price_monthly;
 
             return (
           <div key={plan.id} className="col-xl-3 col-lg-4 col-md-6">
@@ -199,8 +328,16 @@ export default function PricingPage() {
                     Contact Sales
                   </Link>
                 ) : (
-                  <button className={`btn ${isPopular ? 'btn-primary' : 'btn-outline-primary'} w-100`}>
-                    {plan.price_monthly === 0 ? 'Get Started' : 'Upgrade'}
+                  <button
+                    className={`btn ${isPopular ? 'btn-primary' : 'btn-outline-primary'} w-100`}
+                    onClick={() => handlePlanCheckout(plan)}
+                    disabled={pendingPlanId === plan.id || isConfirmingCheckout}
+                  >
+                    {pendingPlanId === plan.id
+                      ? 'Processing...'
+                      : selectedPrice === 0
+                        ? 'Get Started'
+                        : 'Upgrade'}
                   </button>
                 )}
               </div>

@@ -31,13 +31,14 @@ function formatPaymentMethod(value: string | null): string {
 
 function formatPlanPrice(data: CurrentPlanResponse | null): string {
   const plan = data?.plan;
+  const billingInterval = data?.subscription?.billing_interval === 'annual' ? 'annual' : 'monthly';
   if (!plan) return '--';
   if (plan.contact_sales) return plan.pricing_label || 'Contact Sales';
 
-  const monthlyPrice = plan.price_monthly;
-  if (monthlyPrice === 0) return 'Free';
+  const price = billingInterval === 'annual' ? plan.price_yearly : plan.price_monthly;
+  if (price === 0) return 'Free';
 
-  return `$${monthlyPrice}/month`;
+  return billingInterval === 'annual' ? `$${price}/year` : `$${price}/month`;
 }
 
 export default function ProfilePage() {
