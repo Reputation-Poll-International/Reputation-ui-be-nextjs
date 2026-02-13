@@ -4,12 +4,48 @@ import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import Link from 'next/link';
 import { fetchProfile, getAuthUser, type AuthUser } from '@/lib/auth';
+import { fetchUserCurrentPlan, type CurrentPlanResponse } from '@/lib/plans';
 import { fetchAuditHistory, type AuditHistoryRecord } from '@/lib/reputation';
+
+function formatDate(value: string | null): string {
+  if (!value) return '--';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatPaymentMethod(value: string | null): string {
+  if (!value) return '--';
+
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatPlanPrice(data: CurrentPlanResponse | null): string {
+  const plan = data?.plan;
+  if (!plan) return '--';
+  if (plan.contact_sales) return plan.pricing_label || 'Contact Sales';
+
+  const monthlyPrice = plan.price_monthly;
+  if (monthlyPrice === 0) return 'Free';
+
+  return `$${monthlyPrice}/month`;
+}
 
 export default function ProfilePage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [records, setRecords] = useState<AuditHistoryRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planData, setPlanData] = useState<CurrentPlanResponse | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -22,6 +58,7 @@ export default function ProfilePage() {
       setUser(currentUser);
 
       try {
+        setPlanError(null);
         const [latestProfile, history] = await Promise.all([
           fetchProfile(currentUser.id),
           fetchAuditHistory({ user_id: currentUser.id, limit: 200 }),
@@ -29,6 +66,17 @@ export default function ProfilePage() {
 
         setUser(latestProfile);
         setRecords(history.audits);
+
+        try {
+          const currentPlan = await fetchUserCurrentPlan({ user_id: currentUser.id });
+          setPlanData(currentPlan);
+        } catch (planErr) {
+          if (planErr instanceof Error) {
+            setPlanError(planErr.message);
+          } else {
+            setPlanError('Unable to load subscription details right now.');
+          }
+        }
       } catch (err) {
         if (err instanceof Error) {
           setError(err.message);
@@ -42,14 +90,14 @@ export default function ProfilePage() {
   }, []);
 
   const profileImage = user?.avatar_url || '/images/faces/12.jpg';
-  const displayName = user?.name || 'John Doe';
-  const displayEmail = user?.email || 'user@bizreputation.ai';
+  const displayName = user?.name || '--';
+  const displayEmail = user?.email || '--';
   const displayPhone = user?.phone || '--';
   const displayLocation = user?.location || '--';
-  const displayCompany = user?.company || 'Acme Corp';
-  const displayIndustry = user?.industry || 'Technology';
-  const displayCompanySize = user?.company_size || '51-200 employees';
-  const displayWebsite = user?.website || 'acmecorp.com';
+  const displayCompany = user?.company || '--';
+  const displayIndustry = user?.industry || '--';
+  const displayCompanySize = user?.company_size || '--';
+  const displayWebsite = user?.website || '--';
 
   const accountStats = useMemo(() => {
     const totalAudits = records.length;
@@ -91,6 +139,25 @@ export default function ProfilePage() {
     });
   })();
 
+  const planName =
+    planData?.plan?.name || (planData?.plans_active === false ? 'Flexible Access' : '--');
+  const subscriptionStatus = planData?.subscription?.status || '--';
+  const usage = planData?.usage;
+  const auditUsageLabel =
+    !planData
+      ? '--'
+      : !planData.plans_active || !usage
+        ? 'Unlimited access'
+        : usage.audits_limit === null
+          ? `${usage.audits_used} used (unlimited)`
+          : `${usage.audits_used} of ${usage.audits_limit} used`;
+  const concurrentUsageLabel =
+    !planData
+      ? '--'
+      : !planData.plans_active || !usage
+        ? 'No enforced limit'
+        : `${usage.concurrent_running} of ${usage.concurrent_allowed} running`;
+
   return (
     <DashboardLayout>
       <div className="d-flex align-items-center justify-content-between mb-4">
@@ -109,6 +176,12 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {planError && (
+        <div className="alert alert-warning" role="alert">
+          {planError}
+        </div>
+      )}
+
       <div className="row">
         <div className="col-lg-4">
           {/* Profile Card */}
@@ -119,7 +192,7 @@ export default function ProfilePage() {
               </div>
               <h4 className="fw-semibold mb-1">{displayName}</h4>
               <p className="text-muted mb-3">{displayEmail}</p>
-              <span className="badge bg-success-transparent text-success">Pro Plan</span>
+              <span className="badge bg-success-transparent text-success">{planName}</span>
             </div>
           </div>
 
@@ -215,21 +288,29 @@ export default function ProfilePage() {
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Current Plan</label>
                   <p className="mb-0 fw-medium">
-                    <span className="badge bg-primary me-2">Pro</span>
-                    $29/month
+                    <span className="badge bg-primary me-2">{planName}</span>
+                    {formatPlanPrice(planData)}
                   </p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Renewal Date</label>
-                  <p className="mb-0 fw-medium">February 1, 2026</p>
+                  <p className="mb-0 fw-medium">{formatDate(planData?.subscription?.renews_at || null)}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Audits This Month</label>
-                  <p className="mb-0 fw-medium">12 of 50 used</p>
+                  <p className="mb-0 fw-medium">{auditUsageLabel}</p>
                 </div>
                 <div className="col-md-6">
-                  <label className="form-label text-muted small">Businesses</label>
-                  <p className="mb-0 fw-medium">3 of 5 used</p>
+                  <label className="form-label text-muted small">Concurrent Audits</label>
+                  <p className="mb-0 fw-medium">{concurrentUsageLabel}</p>
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label text-muted small">Payment Method</label>
+                  <p className="mb-0 fw-medium">{formatPaymentMethod(planData?.subscription?.payment_method || null)}</p>
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label text-muted small">Subscription Status</label>
+                  <p className="mb-0 fw-medium text-capitalize">{subscriptionStatus}</p>
                 </div>
               </div>
             </div>

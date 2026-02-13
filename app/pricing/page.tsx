@@ -1,95 +1,118 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { getAuthUser } from '@/lib/auth';
+import { fetchPlans, fetchUserSubscription, type UserPlan } from '@/lib/plans';
 
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  period: string;
-  features: string[];
-  popular?: boolean;
-  current?: boolean;
+function formatPrice(value: number): string {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+
+  return value.toFixed(2);
 }
 
-const plans: Plan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    period: 'forever',
-    features: [
-      '5 audits per month',
-      '1 business profile',
-      'Basic reporting',
-      '7-day history',
-      'Email support',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Professional',
-    price: 29,
-    period: 'month',
-    features: [
-      '50 audits per month',
-      '5 business profiles',
-      'Advanced reporting',
-      '90-day history',
-      'Priority support',
-      'API access',
-      'Export reports',
-    ],
-    popular: true,
-    current: true,
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    price: 79,
-    period: 'month',
-    features: [
-      'Unlimited audits',
-      'Unlimited business profiles',
-      'White-label reports',
-      'Unlimited history',
-      'Dedicated support',
-      'Full API access',
-      'Custom integrations',
-      'Team collaboration',
-    ],
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: -1, // Custom pricing
-    period: 'custom',
-    features: [
-      'Everything in Business',
-      'Custom SLA',
-      'Dedicated account manager',
-      'On-premise deployment',
-      'Custom development',
-      'Training & onboarding',
-      'Advanced security features',
-    ],
-  },
-];
+function toFeatureList(plan: UserPlan): string[] {
+  const features: string[] = [];
+  const maxAudits = plan.features.max_audits_per_month;
+  const concurrentAudits = plan.features.concurrent_audits_allowed;
+
+  if (maxAudits === null || typeof maxAudits === 'undefined') {
+    features.push('Unlimited AI audits per month');
+  } else {
+    features.push(`Up to ${maxAudits} AI audits per month`);
+  }
+
+  if (concurrentAudits === null || typeof concurrentAudits === 'undefined') {
+    features.push('Unlimited concurrent audits');
+  } else {
+    features.push(
+      `${concurrentAudits} concurrent audit${concurrentAudits === 1 ? '' : 's'} at a time`
+    );
+  }
+
+  if (plan.description) {
+    features.push(plan.description);
+  }
+
+  if (plan.contact_sales) {
+    features.push('Custom allocation and onboarding support');
+  }
+
+  return features;
+}
 
 export default function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [plans, setPlans] = useState<UserPlan[]>([]);
+  const [plansActive, setPlansActive] = useState(true);
+  const [currentPlanId, setCurrentPlanId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const getPrice = (plan: Plan) => {
-    if (plan.price === -1) return 'Custom';
-    if (plan.price === 0) return 'Free';
-    const price = billingPeriod === 'annual' ? plan.price * 10 : plan.price;
-    return `$${price}`;
+  useEffect(() => {
+    const loadPlans = async () => {
+      const user = getAuthUser();
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const plansPromise = fetchPlans();
+        const subscriptionPromise = user
+          ? fetchUserSubscription({ user_id: user.id })
+          : Promise.resolve(null);
+
+        const [plansResult, subscriptionResult] = await Promise.allSettled([
+          plansPromise,
+          subscriptionPromise,
+        ]);
+
+        if (plansResult.status === 'fulfilled') {
+          setPlans(plansResult.value.plans);
+          setPlansActive(plansResult.value.plans_active);
+        } else if (plansResult.reason instanceof Error) {
+          setError(plansResult.reason.message);
+        } else {
+          setError('Unable to load plans right now.');
+        }
+
+        if (
+          subscriptionResult.status === 'fulfilled' &&
+          subscriptionResult.value?.subscription?.plan?.id
+        ) {
+          setCurrentPlanId(subscriptionResult.value.subscription.plan.id);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadPlans();
+  }, []);
+
+  const sortedPlans = useMemo(
+    () =>
+      [...plans].sort((a, b) => {
+        if (a.contact_sales && !b.contact_sales) return 1;
+        if (!a.contact_sales && b.contact_sales) return -1;
+        return a.price_monthly - b.price_monthly;
+      }),
+    [plans]
+  );
+
+  const getPrice = (plan: UserPlan) => {
+    if (plan.contact_sales) return plan.pricing_label || 'Contact Sales';
+
+    const price = billingPeriod === 'annual' ? plan.price_yearly : plan.price_monthly;
+    if (price === 0) return 'Free';
+    return `$${formatPrice(price)}`;
   };
 
-  const getPeriod = (plan: Plan) => {
-    if (plan.price === -1) return 'Contact Sales';
-    if (plan.price === 0) return 'Forever';
+  const getPeriod = (plan: UserPlan) => {
+    if (plan.contact_sales) return '';
+    if (plan.price_monthly === 0 && plan.price_yearly === 0) return 'Forever';
     return billingPeriod === 'annual' ? '/year' : '/month';
   };
 
@@ -124,11 +147,29 @@ export default function PricingPage() {
         </div>
       </div>
 
+      {!plansActive && (
+        <div className="alert alert-info" role="alert">
+          Plan restrictions are currently disabled. Pricing is shown for reference.
+        </div>
+      )}
+
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      )}
+
       <div className="row g-4 justify-content-center">
-        {plans.map((plan) => (
+        {!isLoading &&
+          sortedPlans.map((plan) => {
+            const isPopular = plan.name.toLowerCase() === 'professional';
+            const isCurrent = currentPlanId === plan.id;
+            const features = toFeatureList(plan);
+
+            return (
           <div key={plan.id} className="col-xl-3 col-lg-4 col-md-6">
-            <div className={`card custom-card h-100 ${plan.popular ? 'border-primary' : ''}`}>
-              {plan.popular && (
+            <div className={`card custom-card h-100 ${isPopular ? 'border-primary' : ''}`}>
+              {isPopular && (
                 <div className="card-header bg-primary text-white text-center py-2">
                   <small className="fw-semibold">Most Popular</small>
                 </div>
@@ -141,31 +182,40 @@ export default function PricingPage() {
                 </div>
 
                 <ul className="list-unstyled mb-4">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="mb-2 d-flex align-items-center">
+                  {features.map((feature) => (
+                    <li key={`${plan.id}-${feature}`} className="mb-2 d-flex align-items-center">
                       <i className="ri-check-line text-success me-2"></i>
                       <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
 
-                {plan.current ? (
+                {isCurrent ? (
                   <button className="btn btn-light w-100" disabled>
                     Current Plan
                   </button>
-                ) : plan.price === -1 ? (
-                  <button className="btn btn-outline-primary w-100">
+                ) : plan.contact_sales ? (
+                  <Link href="/support" className="btn btn-outline-primary w-100">
                     Contact Sales
-                  </button>
+                  </Link>
                 ) : (
-                  <button className={`btn ${plan.popular ? 'btn-primary' : 'btn-outline-primary'} w-100`}>
-                    {plan.price === 0 ? 'Get Started' : 'Upgrade'}
+                  <button className={`btn ${isPopular ? 'btn-primary' : 'btn-outline-primary'} w-100`}>
+                    {plan.price_monthly === 0 ? 'Get Started' : 'Upgrade'}
                   </button>
                 )}
               </div>
             </div>
           </div>
-        ))}
+            );
+          })}
+
+        {isLoading && (
+          <div className="col-12">
+            <div className="card custom-card">
+              <div className="card-body text-center text-muted py-5">Loading plans...</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="row mt-5">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
 import { getAuthUser } from '@/lib/auth';
+import { fetchUserCurrentPlan, type CurrentPlanResponse } from '@/lib/plans';
 import {
   AuditHistoryRecord,
   fetchAuditHistory,
@@ -67,11 +68,22 @@ function extractDomain(website: string | null): string {
   }
 }
 
+function formatPaymentMethod(value: string | null): string {
+  if (!value) return '--';
+
+  return value
+    .split('_')
+    .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
+    .join(' ');
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [records, setRecords] = useState<AuditHistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planData, setPlanData] = useState<CurrentPlanResponse | null>(null);
   const [loadingAuditId, setLoadingAuditId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -85,11 +97,33 @@ export default function DashboardPage() {
 
       try {
         setError(null);
-        const response = await fetchAuditHistory({
-          user_id: user.id,
-          limit: 50,
-        });
-        setRecords(response.audits);
+        setPlanError(null);
+
+        const [historyResult, planResult] = await Promise.allSettled([
+          fetchAuditHistory({
+            user_id: user.id,
+            limit: 50,
+          }),
+          fetchUserCurrentPlan({
+            user_id: user.id,
+          }),
+        ]);
+
+        if (historyResult.status === 'fulfilled') {
+          setRecords(historyResult.value.audits);
+        } else if (historyResult.reason instanceof Error) {
+          setError(historyResult.reason.message);
+        } else {
+          setError('Unable to load dashboard data right now.');
+        }
+
+        if (planResult.status === 'fulfilled') {
+          setPlanData(planResult.value);
+        } else if (planResult.reason instanceof Error) {
+          setPlanError(planResult.reason.message);
+        } else {
+          setPlanError('Unable to load plan usage right now.');
+        }
       } catch (err) {
         if (err instanceof Error) {
           setError(err.message);
@@ -127,6 +161,35 @@ export default function DashboardPage() {
     [records]
   );
   const recentAudits = useMemo(() => records.slice(0, 5), [records]);
+
+  const plansActive = planData?.plans_active;
+  const usage = planData?.usage;
+  const subscription = planData?.subscription;
+  const plan = planData?.plan;
+
+  const auditsRemaining = isLoading
+    ? '--'
+    : plansActive === true && usage
+      ? usage.audits_remaining === null
+        ? 'Unlimited'
+        : usage.audits_remaining
+      : plansActive === false
+        ? 'Unlimited'
+        : '--';
+
+  const usageProgressPercent =
+    plansActive === true && usage?.audits_limit && usage.audits_limit > 0
+      ? Math.min(100, Math.round((usage.audits_used / usage.audits_limit) * 100))
+      : 0;
+
+  const nearAuditLimit = Boolean(
+    plansActive === true &&
+      usage &&
+      usage.audits_limit !== null &&
+      usage.audits_limit > 0 &&
+      usage.audits_remaining !== null &&
+      usage.audits_remaining <= Math.ceil(usage.audits_limit * 0.2)
+  );
 
   const handleViewAudit = async (auditId: number) => {
     const user = getAuthUser();
@@ -178,6 +241,12 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {planError && (
+        <div className="alert alert-warning" role="alert">
+          {planError}
+        </div>
+      )}
+
       <div className="row mb-4">
         <div className="col-xl-3 col-lg-6 col-md-6">
           <div className="card custom-card">
@@ -215,6 +284,107 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <div className="row mb-4">
+        <div className="col-xl-6">
+          <div className="card custom-card h-100">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Plan Usage</h5>
+              <Link href="/pricing" className="btn btn-sm btn-outline-primary">
+                Upgrade Plan
+              </Link>
+            </div>
+            <div className="card-body">
+              <div className="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <p className="mb-1 text-muted">Audits Remaining</p>
+                  <h3 className="fw-bold mb-0">{auditsRemaining}</h3>
+                </div>
+                {plansActive === true && (
+                  <span className="badge bg-primary-transparent text-primary">
+                    {usage?.audits_used ?? 0}
+                    {usage?.audits_limit === null ? '' : `/${usage?.audits_limit}`} used
+                  </span>
+                )}
+              </div>
+
+              {plansActive === true && usage?.audits_limit !== null && (
+                <div>
+                  <div className="progress progress-sm mb-2">
+                    <div
+                      className={`progress-bar ${nearAuditLimit ? 'bg-warning' : 'bg-primary'}`}
+                      style={{ width: `${usageProgressPercent}%` }}
+                      role="progressbar"
+                      aria-valuenow={usageProgressPercent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    ></div>
+                  </div>
+                  <p className="text-muted mb-0 fs-12">
+                    Billing cycle: {usage.period_start} to {usage.period_end}
+                  </p>
+                </div>
+              )}
+
+              {plansActive === false && (
+                <p className="text-muted mb-0">
+                  Plan restrictions are currently disabled. Audit access is unrestricted.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="col-xl-6 mt-4 mt-xl-0">
+          <div className="card custom-card h-100">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Subscription Status</h5>
+              <Link href="/profile" className="btn btn-sm btn-outline-primary">
+                View Account
+              </Link>
+            </div>
+            <div className="card-body">
+              <div className="row g-3">
+                <div className="col-sm-6">
+                  <span className="text-muted fs-12 d-block mb-1">Current Plan</span>
+                  <span className="fw-semibold">{isLoading ? '--' : plan?.name || '--'}</span>
+                </div>
+                <div className="col-sm-6">
+                  <span className="text-muted fs-12 d-block mb-1">Status</span>
+                  <span
+                    className={`badge ${
+                      subscription?.status === 'active'
+                        ? 'bg-success-transparent text-success'
+                        : 'bg-warning-transparent text-warning'
+                    }`}
+                  >
+                    {subscription?.status || '--'}
+                  </span>
+                </div>
+                <div className="col-sm-6">
+                  <span className="text-muted fs-12 d-block mb-1">Renews On</span>
+                  <span className="fw-medium">{formatDate(subscription?.renews_at || null)}</span>
+                </div>
+                <div className="col-sm-6">
+                  <span className="text-muted fs-12 d-block mb-1">Payment Method</span>
+                  <span className="fw-medium">{formatPaymentMethod(subscription?.payment_method || null)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {nearAuditLimit && (
+        <div className="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+          <span>
+            You are close to your monthly audit limit. Upgrade your plan to avoid interruptions.
+          </span>
+          <Link href="/pricing" className="btn btn-sm btn-warning ms-3">
+            Upgrade
+          </Link>
+        </div>
+      )}
 
       <div className="row">
         <div className="col-12">
