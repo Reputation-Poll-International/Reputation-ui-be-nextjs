@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
+import ReputationCallout from '../components/ReputationCallout';
 import { ReputationCandidate, ReputationScanRequest, scanReputation } from '@/lib/reputation';
 import { getAuthUser } from '@/lib/auth';
 
@@ -277,6 +278,7 @@ export default function StartAuditPage() {
           <p className="text-muted mb-0">Enter your business details to launch an AI-powered reputation audit</p>
         </div>
       </div>
+      <ReputationCallout message="A strong audit starts with accurate business details. Better inputs produce clearer reputation signals and higher-impact recommendations." />
 
       <div className="row">
         <div className="col-lg-8 offset-lg-2">

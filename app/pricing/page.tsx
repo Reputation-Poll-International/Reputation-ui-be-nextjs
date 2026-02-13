@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
+import ReputationCallout from '../components/ReputationCallout';
 import { getAuthUser } from '@/lib/auth';
 import {
   confirmBillingCheckoutSession,
@@ -266,6 +267,10 @@ function PricingContent() {
         </div>
         <h1 className="page-title fw-bold mb-2">Choose Your Plan</h1>
         <p className="text-muted mb-4">Select the perfect plan for your business needs</p>
+        <ReputationCallout
+          className="mx-auto text-start"
+          message="Consistent reputation monitoring helps you protect trust, rankings, and conversions. Choose a plan that matches how often your business needs visibility."
+        />
 
         <div className="btn-group" role="group">
           <input

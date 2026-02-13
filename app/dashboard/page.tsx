@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
+import ReputationCallout from '../components/ReputationCallout';
 import { getAuthUser } from '@/lib/auth';
 import { fetchUserCurrentPlan, type CurrentPlanResponse } from '@/lib/plans';
 import {
@@ -233,6 +234,20 @@ export default function DashboardPage() {
         <Link href="/start-audit" className="btn btn-primary">
           <i className="ri-add-line me-2"></i>New AI Audit
         </Link>
+      </div>
+      <ReputationCallout message="Your business reputation compounds over time. Run audits regularly to catch trust risks early and improve what customers see first." />
+      <div className="card custom-card d-lg-none mb-4">
+        <div className="card-body">
+          <h6 className="fw-semibold mb-2">AI Engine</h6>
+          <p className="text-muted mb-3 fs-13">
+            Active audits, scoring, sentiment analysis, and recommendations are powered by AI.
+          </p>
+          <div className="d-flex flex-wrap gap-2">
+            <span className="badge bg-primary-transparent text-primary">AI Audit</span>
+            <span className="badge bg-primary-transparent text-primary">AI Insights</span>
+            <span className="badge bg-primary-transparent text-primary">AI Recommendations</span>
+          </div>
+        </div>
       </div>
 
       {error && (

@@ -58,21 +58,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <Sidebar />
       <div className="main-content app-content">
         <div className="container-fluid page-container">
-          <div className="ai-presence-banner card custom-card mb-4">
-            <div className="card-body d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
-              <div>
-                <span className="badge bg-primary me-2">AI Engine Active</span>
-                <span className="text-muted">
-                  Audits, scoring, sentiment analysis, and recommendations are powered by AI.
-                </span>
-              </div>
-              <div className="d-flex flex-wrap gap-2">
-                <span className="badge bg-primary-transparent text-primary">AI Audit</span>
-                <span className="badge bg-success-transparent text-success">AI Insights</span>
-                <span className="badge bg-info-transparent text-info">AI Recommendations</span>
-              </div>
-            </div>
-          </div>
           {children}
         </div>
       </div>

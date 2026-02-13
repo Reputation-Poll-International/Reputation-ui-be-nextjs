@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import ReputationCallout from '../components/ReputationCallout';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getAuthUser } from '@/lib/auth';
@@ -247,6 +248,7 @@ export default function AuditHistoryPage() {
           <i className="ri-add-line me-2"></i>New AI Audit
         </Link>
       </div>
+      <ReputationCallout message="Review trends across past audits to see whether your reputation is improving, stalling, or declining and where to act next." />
 
       <div className="card custom-card">
         <div className="card-header">
