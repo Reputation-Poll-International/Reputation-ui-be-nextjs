@@ -1,43 +1,189 @@
 'use client';
 
-import DashboardLayout from '../components/DashboardLayout';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import DashboardLayout from '../components/DashboardLayout';
+import { getAuthUser } from '@/lib/auth';
+import {
+  AuditHistoryRecord,
+  fetchAuditHistory,
+  fetchAuditHistoryItem,
+} from '@/lib/reputation';
+
+type DashboardAuditStatus = 'queued' | 'processing' | 'complete' | 'failed' | 'needs_selection';
+
+function mapAuditStatus(status: AuditHistoryRecord['status']): DashboardAuditStatus {
+  if (status === 'pending') return 'queued';
+  if (status === 'processing') return 'processing';
+  if (status === 'success') return 'complete';
+  if (status === 'selection_required') return 'needs_selection';
+  return 'failed';
+}
+
+function statusBadgeClass(status: DashboardAuditStatus): string {
+  if (status === 'queued') return 'bg-info-transparent text-info';
+  if (status === 'processing') return 'bg-primary-transparent text-primary';
+  if (status === 'complete') return 'bg-success-transparent text-success';
+  if (status === 'needs_selection') return 'bg-warning-transparent text-warning';
+  return 'bg-danger-transparent text-danger';
+}
+
+function statusLabel(status: DashboardAuditStatus): string {
+  if (status === 'queued') return 'Submitted';
+  if (status === 'processing') return 'Processing';
+  if (status === 'complete') return 'Complete';
+  if (status === 'needs_selection') return 'Needs Selection';
+  return 'Failed';
+}
+
+function getScoreBadgeClass(score: number) {
+  if (score >= 80) return 'bg-success';
+  if (score >= 60) return 'bg-primary';
+  if (score >= 40) return 'bg-warning';
+  return 'bg-danger';
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return '--';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function extractDomain(website: string | null): string {
+  if (!website) return '--';
+
+  try {
+    return new URL(website).hostname.replace('www.', '');
+  } catch {
+    return website;
+  }
+}
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const [records, setRecords] = useState<AuditHistoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingAuditId, setLoadingAuditId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      const user = getAuthUser();
+      if (!user) {
+        setError('No authenticated user found. Sign in to view dashboard.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setError(null);
+        const response = await fetchAuditHistory({
+          user_id: user.id,
+          limit: 50,
+        });
+        setRecords(response.audits);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Unable to load dashboard data right now.');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadDashboardData();
+  }, []);
+
+  const totalAudits = records.length;
+  const successfulAudits = useMemo(
+    () => records.filter((audit) => mapAuditStatus(audit.status) === 'complete'),
+    [records]
+  );
+  const averageScore = useMemo(() => {
+    if (successfulAudits.length === 0) return null;
+
+    const sum = successfulAudits.reduce((acc, audit) => acc + (audit.reputation_score || 0), 0);
+    return Math.round(sum / successfulAudits.length);
+  }, [successfulAudits]);
+  const processingAudits = useMemo(
+    () => records.filter((audit) => {
+      const mapped = mapAuditStatus(audit.status);
+      return mapped === 'queued' || mapped === 'processing';
+    }).length,
+    [records]
+  );
+  const failedAudits = useMemo(
+    () => records.filter((audit) => mapAuditStatus(audit.status) === 'failed').length,
+    [records]
+  );
+  const recentAudits = useMemo(() => records.slice(0, 5), [records]);
+
+  const handleViewAudit = async (auditId: number) => {
+    const user = getAuthUser();
+    if (!user) {
+      setError('No authenticated user found. Sign in and try again.');
+      return;
+    }
+
+    try {
+      setLoadingAuditId(auditId);
+      setError(null);
+
+      const response = await fetchAuditHistoryItem(auditId, { user_id: user.id });
+      const scanResponse = response.audit.scan_response;
+
+      if (!scanResponse) {
+        setError('This audit does not have a completed scan result yet.');
+        return;
+      }
+
+      sessionStorage.setItem('auditResults', JSON.stringify(scanResponse));
+      router.push('/audit-results');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Unable to open this audit right now.');
+      }
+    } finally {
+      setLoadingAuditId(null);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="d-flex align-items-center justify-content-between mb-4">
         <div>
           <h1 className="page-title fw-bold mb-1">Dashboard</h1>
-          <p className="text-muted mb-0">Welcome back! Here&apos;s your reputation overview.</p>
+          <p className="text-muted mb-0">Track AI-driven audits, scoring, and insights in one place.</p>
         </div>
         <Link href="/start-audit" className="btn btn-primary">
-          <i className="ri-add-line me-2"></i>New Audit
+          <i className="ri-add-line me-2"></i>New AI Audit
         </Link>
       </div>
 
-      {/* Stats Cards */}
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      )}
+
       <div className="row mb-4">
         <div className="col-xl-3 col-lg-6 col-md-6">
           <div className="card custom-card">
             <div className="card-body">
-              <div className="d-flex align-items-center justify-content-between">
-                <div>
-                  <span className="fs-13 fw-medium text-muted">Total Audits</span>
-                  <h3 className="fw-bold mb-0 mt-1">24</h3>
-                </div>
-                <div className="avatar avatar-lg bg-primary-transparent rounded-circle">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor">
-                    <circle cx="128" cy="128" r="96" opacity="0.2"/>
-                    <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                    <polyline points="128 72 128 128 176 168" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="badge bg-success-transparent text-success">+12%</span>
-                <span className="text-muted fs-12 ms-2">vs last month</span>
-              </div>
+              <span className="fs-13 fw-medium text-muted">Total Audits</span>
+              <h3 className="fw-bold mb-0 mt-1">{isLoading ? '--' : totalAudits}</h3>
             </div>
           </div>
         </div>
@@ -45,23 +191,8 @@ export default function DashboardPage() {
         <div className="col-xl-3 col-lg-6 col-md-6">
           <div className="card custom-card">
             <div className="card-body">
-              <div className="d-flex align-items-center justify-content-between">
-                <div>
-                  <span className="fs-13 fw-medium text-muted">Avg. Reputation Score</span>
-                  <h3 className="fw-bold mb-0 mt-1">78</h3>
-                </div>
-                <div className="avatar avatar-lg bg-success-transparent rounded-circle">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor">
-                    <path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"/>
-                    <polyline points="88 136 112 160 168 104" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                    <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="badge bg-success-transparent text-success">+5%</span>
-                <span className="text-muted fs-12 ms-2">improvement</span>
-              </div>
+              <span className="fs-13 fw-medium text-muted">Avg. Reputation Score</span>
+              <h3 className="fw-bold mb-0 mt-1">{isLoading ? '--' : averageScore ?? '--'}</h3>
             </div>
           </div>
         </div>
@@ -69,23 +200,8 @@ export default function DashboardPage() {
         <div className="col-xl-3 col-lg-6 col-md-6">
           <div className="card custom-card">
             <div className="card-body">
-              <div className="d-flex align-items-center justify-content-between">
-                <div>
-                  <span className="fs-13 fw-medium text-muted">Businesses Tracked</span>
-                  <h3 className="fw-bold mb-0 mt-1">3</h3>
-                </div>
-                <div className="avatar avatar-lg bg-info-transparent rounded-circle">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor">
-                    <rect x="32" y="80" width="192" height="128" rx="8" opacity="0.2"/>
-                    <rect x="32" y="80" width="192" height="128" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                    <path d="M168,80V56a16,16,0,0,0-16-16H104A16,16,0,0,0,88,56V80" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="badge bg-primary-transparent text-primary">Active</span>
-                <span className="text-muted fs-12 ms-2">all businesses</span>
-              </div>
+              <span className="fs-13 fw-medium text-muted">Submitted / Processing</span>
+              <h3 className="fw-bold mb-0 mt-1">{isLoading ? '--' : processingAudits}</h3>
             </div>
           </div>
         </div>
@@ -93,28 +209,13 @@ export default function DashboardPage() {
         <div className="col-xl-3 col-lg-6 col-md-6">
           <div className="card custom-card">
             <div className="card-body">
-              <div className="d-flex align-items-center justify-content-between">
-                <div>
-                  <span className="fs-13 fw-medium text-muted">Mentions Found</span>
-                  <h3 className="fw-bold mb-0 mt-1">156</h3>
-                </div>
-                <div className="avatar avatar-lg bg-warning-transparent rounded-circle">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor">
-                    <path d="M224,128a96,96,0,0,1-144.07,83.11l-49.27,14.08,14.08-49.27A96,96,0,1,1,224,128Z" opacity="0.2"/>
-                    <path d="M224,128a96,96,0,0,1-144.07,83.11l-49.27,14.08,14.08-49.27A96,96,0,1,1,224,128Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="mt-3">
-                <span className="badge bg-warning-transparent text-warning">+23</span>
-                <span className="text-muted fs-12 ms-2">new this week</span>
-              </div>
+              <span className="fs-13 fw-medium text-muted">Failed Audits</span>
+              <h3 className="fw-bold mb-0 mt-1">{isLoading ? '--' : failedAudits}</h3>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Audits */}
       <div className="row">
         <div className="col-12">
           <div className="card custom-card">
@@ -135,66 +236,75 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>
-                        <div className="d-flex align-items-center">
-                          <div className="avatar avatar-sm bg-primary-transparent rounded me-2">
-                            <span>AC</span>
-                          </div>
-                          <div>
-                            <span className="fw-medium">Acme Corp</span>
-                            <br />
-                            <small className="text-muted">acmecorp.com</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td>Jan 2, 2026</td>
-                      <td><span className="badge bg-success">85</span></td>
-                      <td><span className="badge bg-success-transparent text-success">Complete</span></td>
-                      <td>
-                        <Link href="/audit-results" className="btn btn-sm btn-primary">View</Link>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="d-flex align-items-center">
-                          <div className="avatar avatar-sm bg-info-transparent rounded me-2">
-                            <span>TD</span>
-                          </div>
-                          <div>
-                            <span className="fw-medium">Tech Dynamics</span>
-                            <br />
-                            <small className="text-muted">techdynamics.io</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td>Dec 28, 2025</td>
-                      <td><span className="badge bg-primary">72</span></td>
-                      <td><span className="badge bg-success-transparent text-success">Complete</span></td>
-                      <td>
-                        <Link href="/audit-results" className="btn btn-sm btn-primary">View</Link>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="d-flex align-items-center">
-                          <div className="avatar avatar-sm bg-warning-transparent rounded me-2">
-                            <span>GS</span>
-                          </div>
-                          <div>
-                            <span className="fw-medium">Global Services</span>
-                            <br />
-                            <small className="text-muted">globalservices.net</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td>Dec 20, 2025</td>
-                      <td><span className="badge bg-warning">58</span></td>
-                      <td><span className="badge bg-success-transparent text-success">Complete</span></td>
-                      <td>
-                        <Link href="/audit-results" className="btn btn-sm btn-primary">View</Link>
-                      </td>
-                    </tr>
+                    {!isLoading && recentAudits.map((audit) => {
+                      const mappedStatus = mapAuditStatus(audit.status);
+                      const businessName = audit.business_name || 'Unnamed Business';
+                      const websiteLabel = extractDomain(audit.website);
+
+                      return (
+                        <tr key={audit.id}>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              <div className="avatar avatar-sm bg-primary-transparent rounded me-2">
+                                <span>{businessName.substring(0, 2).toUpperCase()}</span>
+                              </div>
+                              <div>
+                                <span className="fw-medium">{businessName}</span>
+                                <br />
+                                <small className="text-muted">{websiteLabel}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{formatDate(audit.scan_date || audit.created_at)}</td>
+                          <td>
+                            {mappedStatus === 'complete' && typeof audit.reputation_score === 'number' ? (
+                              <span className={`badge ${getScoreBadgeClass(audit.reputation_score)}`}>
+                                {audit.reputation_score}
+                              </span>
+                            ) : (
+                              <span className="text-muted">--</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`badge ${statusBadgeClass(mappedStatus)}`}>
+                              {statusLabel(mappedStatus)}
+                            </span>
+                          </td>
+                          <td>
+                            {mappedStatus === 'complete' ? (
+                              <button
+                                className="btn btn-sm btn-primary"
+                                type="button"
+                                onClick={() => handleViewAudit(audit.id)}
+                                disabled={loadingAuditId === audit.id}
+                              >
+                                {loadingAuditId === audit.id ? 'Opening...' : 'View'}
+                              </button>
+                            ) : (
+                              <Link href="/audit-history" className="btn btn-sm btn-outline-primary">
+                                Track
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {!isLoading && recentAudits.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="text-center text-muted py-4">
+                          No audits yet. Start your first audit.
+                        </td>
+                      </tr>
+                    )}
+
+                    {isLoading && (
+                      <tr>
+                        <td colSpan={5} className="text-center text-muted py-4">
+                          Loading dashboard data...
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

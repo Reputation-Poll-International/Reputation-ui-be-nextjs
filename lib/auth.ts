@@ -6,10 +6,14 @@ export interface AuthUser {
   avatar_url?: string | null;
   phone?: string | null;
   company?: string | null;
+  industry?: string | null;
+  company_size?: string | null;
+  website?: string | null;
   location?: string | null;
   notification_preferences?: Record<string, boolean> | null;
   last_login_at?: string | null;
   last_login_provider?: string | null;
+  created_at?: string | null;
 }
 
 interface AuthApiResponse {
@@ -131,6 +135,9 @@ export async function updateProfile(payload: {
   email?: string;
   phone?: string | null;
   company?: string | null;
+  industry?: string | null;
+  company_size?: string | null;
+  website?: string | null;
   location?: string | null;
   notification_preferences?: Record<string, boolean>;
 }): Promise<AuthUser> {
@@ -190,7 +197,32 @@ export function isAuthenticated(): boolean {
   return getAuthUser() !== null;
 }
 
-export function logoutUser(): void {
+export async function logoutUser(): Promise<void> {
   if (!isBrowser()) return;
+
+  const user = getAuthUser();
+  if (user) {
+    try {
+      await postAuth('/auth/logout', { user_id: user.id });
+    } catch (error) {
+      // Even if logout fails, clear local storage
+      console.error('Logout failed:', error);
+    }
+  }
+
+  // Clear auth storage
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  
+  // Dispatch storage event to notify other components/tabs
+  if (user) {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: AUTH_STORAGE_KEY,
+      newValue: null,
+      oldValue: JSON.stringify(user),
+      storageArea: localStorage,
+    }));
+  }
+  
+  // Add a small delay to allow events to propagate
+  await new Promise(resolve => setTimeout(resolve, 100));
 }

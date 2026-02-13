@@ -1,14 +1,95 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import Link from 'next/link';
-import { getAuthUser } from '@/lib/auth';
+import { fetchProfile, getAuthUser, type AuthUser } from '@/lib/auth';
+import { fetchAuditHistory, type AuditHistoryRecord } from '@/lib/reputation';
 
 export default function ProfilePage() {
-  const user = getAuthUser();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [records, setRecords] = useState<AuditHistoryRecord[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const currentUser = getAuthUser();
+      if (!currentUser) {
+        setError('No authenticated user found. Sign in to view your profile.');
+        return;
+      }
+
+      setUser(currentUser);
+
+      try {
+        const [latestProfile, history] = await Promise.all([
+          fetchProfile(currentUser.id),
+          fetchAuditHistory({ user_id: currentUser.id, limit: 200 }),
+        ]);
+
+        setUser(latestProfile);
+        setRecords(history.audits);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Unable to load profile data right now.');
+        }
+      }
+    };
+
+    void loadData();
+  }, []);
+
   const profileImage = user?.avatar_url || '/images/faces/12.jpg';
   const displayName = user?.name || 'John Doe';
   const displayEmail = user?.email || 'user@bizreputation.ai';
+  const displayPhone = user?.phone || '--';
+  const displayLocation = user?.location || '--';
+  const displayCompany = user?.company || 'Acme Corp';
+  const displayIndustry = user?.industry || 'Technology';
+  const displayCompanySize = user?.company_size || '51-200 employees';
+  const displayWebsite = user?.website || 'acmecorp.com';
+
+  const accountStats = useMemo(() => {
+    const totalAudits = records.length;
+
+    const businessSet = new Set(
+      records
+        .map((audit) => (audit.business_name || '').trim().toLowerCase())
+        .filter((name) => name.length > 0)
+    );
+
+    const completedAudits = records.filter(
+      (audit) => audit.status === 'success' && typeof audit.reputation_score === 'number'
+    );
+
+    const avgScore =
+      completedAudits.length > 0
+        ? Math.round(
+            completedAudits.reduce((sum, audit) => sum + (audit.reputation_score || 0), 0) /
+              completedAudits.length
+          )
+        : null;
+
+    return {
+      totalAudits,
+      businesses: businessSet.size,
+      avgScore,
+    };
+  }, [records]);
+
+  const memberSince = (() => {
+    if (!user?.created_at) return '--';
+
+    const date = new Date(user.created_at);
+    if (Number.isNaN(date.getTime())) return '--';
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    });
+  })();
 
   return (
     <DashboardLayout>
@@ -22,19 +103,25 @@ export default function ProfilePage() {
         </Link>
       </div>
 
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      )}
+
       <div className="row">
         <div className="col-lg-4">
           {/* Profile Card */}
-            <div className="card custom-card">
-              <div className="card-body text-center p-5">
-                <div className="avatar avatar-xxl rounded-circle mx-auto mb-3" style={{ width: '120px', height: '120px' }}>
-                  <img src={profileImage} alt="Profile" className="rounded-circle w-100 h-100" style={{ objectFit: 'cover' }} />
-                </div>
-                <h4 className="fw-semibold mb-1">{displayName}</h4>
-                <p className="text-muted mb-3">{displayEmail}</p>
-                <span className="badge bg-success-transparent text-success">Pro Plan</span>
+          <div className="card custom-card">
+            <div className="card-body text-center p-5">
+              <div className="avatar avatar-xxl rounded-circle mx-auto mb-3" style={{ width: '120px', height: '120px' }}>
+                <img src={profileImage} alt="Profile" className="rounded-circle w-100 h-100" style={{ objectFit: 'cover' }} />
               </div>
+              <h4 className="fw-semibold mb-1">{displayName}</h4>
+              <p className="text-muted mb-3">{displayEmail}</p>
+              <span className="badge bg-success-transparent text-success">Pro Plan</span>
             </div>
+          </div>
 
           {/* Account Stats */}
           <div className="card custom-card">
@@ -44,19 +131,19 @@ export default function ProfilePage() {
             <div className="card-body">
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <span className="text-muted">Total Audits</span>
-                <span className="fw-semibold">24</span>
+                <span className="fw-semibold">{accountStats.totalAudits}</span>
               </div>
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <span className="text-muted">Businesses</span>
-                <span className="fw-semibold">3</span>
+                <span className="fw-semibold">{accountStats.businesses}</span>
               </div>
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <span className="text-muted">Avg. Score</span>
-                <span className="fw-semibold">78</span>
+                <span className="fw-semibold">{accountStats.avgScore ?? '--'}</span>
               </div>
               <div className="d-flex justify-content-between align-items-center">
                 <span className="text-muted">Member Since</span>
-                <span className="fw-semibold">Oct 2025</span>
+                <span className="fw-semibold">{memberSince}</span>
               </div>
             </div>
           </div>
@@ -80,11 +167,11 @@ export default function ProfilePage() {
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Phone Number</label>
-                  <p className="mb-0 fw-medium">+1 (555) 123-4567</p>
+                  <p className="mb-0 fw-medium">{displayPhone}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Location</label>
-                  <p className="mb-0 fw-medium">San Francisco, CA</p>
+                  <p className="mb-0 fw-medium">{displayLocation}</p>
                 </div>
               </div>
             </div>
@@ -99,19 +186,19 @@ export default function ProfilePage() {
               <div className="row g-4">
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Company Name</label>
-                  <p className="mb-0 fw-medium">Acme Corp</p>
+                  <p className="mb-0 fw-medium">{displayCompany}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Industry</label>
-                  <p className="mb-0 fw-medium">Technology</p>
+                  <p className="mb-0 fw-medium">{displayIndustry}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Company Size</label>
-                  <p className="mb-0 fw-medium">51-200 employees</p>
+                  <p className="mb-0 fw-medium">{displayCompanySize}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Website</label>
-                  <p className="mb-0 fw-medium">acmecorp.com</p>
+                  <p className="mb-0 fw-medium">{displayWebsite}</p>
                 </div>
               </div>
             </div>

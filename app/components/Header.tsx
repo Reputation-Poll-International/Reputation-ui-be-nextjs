@@ -26,10 +26,17 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleLogout = async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
-    logoutUser();
-    router.replace('/login');
+    try {
+      await logoutUser();
+      // Force a small delay to ensure all storage events are processed
+      await new Promise(resolve => setTimeout(resolve, 200));
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      window.location.href = '/login';
+    }
   };
 
   const handleSidebarToggle = (e: React.MouseEvent) => {

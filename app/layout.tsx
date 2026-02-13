@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "./context/ThemeContext";
+import ClientLayout from "./ClientLayout";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
 
@@ -23,9 +23,9 @@ export default function RootLayout({
         <link rel="stylesheet" href="/css/icons.css" />
       </head>
       <body>
-        <ThemeProvider>
+        <ClientLayout>
           {children}
-        </ThemeProvider>
+        </ClientLayout>
       </body>
     </html>
   );

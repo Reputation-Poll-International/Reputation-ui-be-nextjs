@@ -30,6 +30,9 @@ export default function ProfileSettingsPage() {
     email: '',
     phone: '',
     company: '',
+    industry: '',
+    company_size: '',
+    website: '',
     location: '',
   });
   const [notifications, setNotifications] = useState<NotificationSettings>(defaultNotifications);
@@ -55,6 +58,9 @@ export default function ProfileSettingsPage() {
       email: string;
       phone?: string | null;
       company?: string | null;
+      industry?: string | null;
+      company_size?: string | null;
+      website?: string | null;
       location?: string | null;
       notification_preferences?: Record<string, boolean> | null;
     }
@@ -65,6 +71,9 @@ export default function ProfileSettingsPage() {
       email: user.email || '',
       phone: user.phone || '',
       company: user.company || '',
+      industry: user.industry || '',
+      company_size: user.company_size || '',
+      website: user.website || '',
       location: user.location || '',
     });
 
@@ -86,6 +95,9 @@ export default function ProfileSettingsPage() {
       email: currentUser.email,
       phone: currentUser.phone,
       company: currentUser.company,
+      industry: currentUser.industry,
+      company_size: currentUser.company_size,
+      website: currentUser.website,
       location: currentUser.location,
       notification_preferences: currentUser.notification_preferences,
     });
@@ -99,6 +111,9 @@ export default function ProfileSettingsPage() {
           email: latest.email,
           phone: latest.phone,
           company: latest.company,
+          industry: latest.industry,
+          company_size: latest.company_size,
+          website: latest.website,
           location: latest.location,
           notification_preferences: latest.notification_preferences,
         });
@@ -162,6 +177,9 @@ export default function ProfileSettingsPage() {
         email: formData.email,
         phone: formData.phone || null,
         company: formData.company || null,
+        industry: formData.industry || null,
+        company_size: formData.company_size || null,
+        website: formData.website || null,
         location: formData.location || null,
       });
       setProfileMessage('Profile updated successfully.');
@@ -358,6 +376,36 @@ export default function ProfileSettingsPage() {
                       className="form-control"
                       name="location"
                       value={formData.location}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Industry</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      name="industry"
+                      value={formData.industry}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Company Size</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      name="company_size"
+                      value={formData.company_size}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Website</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      name="website"
+                      value={formData.website}
                       onChange={handleInputChange}
                     />
                   </div>

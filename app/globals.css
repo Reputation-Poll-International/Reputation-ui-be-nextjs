@@ -133,3 +133,9 @@
 .audit-icon-pending {
   color: var(--bs-secondary);
 }
+
+/* Global AI marketing visibility in authenticated UI */
+.ai-presence-banner {
+  border: 1px solid rgba(13, 110, 253, 0.2);
+  background: linear-gradient(90deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
+}

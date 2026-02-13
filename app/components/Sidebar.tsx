@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { logoutUser } from '@/lib/auth';
 
 const menuItems = [
   {
@@ -19,6 +20,7 @@ const menuItems = [
   {
     href: '/start-audit',
     label: 'Start Audit',
+    aiPowered: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256" width="20" height="20">
         <polygon points="216 216 80 216 160 24 216 216" opacity="0.2" fill="currentColor"/>
@@ -29,6 +31,7 @@ const menuItems = [
   {
     href: '/audit-history',
     label: 'Audit History',
+    aiPowered: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256" width="20" height="20">
         <circle cx="128" cy="128" r="96" opacity="0.2" fill="currentColor"/>
@@ -93,6 +96,19 @@ const footerItems = [
 export default function Sidebar() {
   const pathname = usePathname();
 
+  const handleSignOut = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    try {
+      await logoutUser();
+      // Force a small delay to ensure all storage events are processed
+      await new Promise(resolve => setTimeout(resolve, 200));
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Sign out error:', error);
+      window.location.href = '/login';
+    }
+  };
+
   return (
     <aside className="app-sidebar sticky" id="sidebar">
       <div className="main-sidebar-header">
@@ -112,7 +128,12 @@ export default function Sidebar() {
                   className={`side-menu__item ${pathname === item.href ? 'active' : ''}`}
                 >
                   {item.icon}
-                  <span className="side-menu__label">{item.label}</span>
+                  <span className="side-menu__label d-inline-flex align-items-center">
+                    {item.label}
+                    {item.aiPowered ? (
+                      <span className="badge bg-primary-transparent text-primary ms-2">AI</span>
+                    ) : null}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -120,17 +141,33 @@ export default function Sidebar() {
         </nav>
         <div className="sidebar-footer">
           <ul className="main-menu">
-            {footerItems.map((item) => (
-              <li key={item.href} className="slide">
-                <Link
-                  href={item.href}
-                  className={`side-menu__item ${pathname === item.href ? 'active' : ''}`}
-                >
-                  {item.icon}
-                  <span className="side-menu__label">{item.label}</span>
-                </Link>
-              </li>
-            ))}
+            {footerItems.map((item) => {
+              if (item.label === 'Sign Out') {
+                return (
+                  <li key={item.href} className="slide">
+                    <Link
+                      href="/login"
+                      className={`side-menu__item`}
+                      onClick={handleSignOut}
+                    >
+                      {item.icon}
+                      <span className="side-menu__label">{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              }
+              return (
+                <li key={item.href} className="slide">
+                  <Link
+                    href={item.href}
+                    className={`side-menu__item ${pathname === item.href ? 'active' : ''}`}
+                  >
+                    {item.icon}
+                    <span className="side-menu__label">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>
