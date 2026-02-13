@@ -1,13 +1,13 @@
 /* src/assets/icon-fonts/RemixIcons/fonts/remixicon.css */
 @font-face {
   font-family: "remixicon";
-  src: url(remixicon-ABHKITET.eot%3Ft=1708865856766);
+  src: url(remixicon-ABHKITET.eot);
   src:
-    url(remixicon-ABHKITET.eot%3Ft=1708865856766) format("embedded-opentype"),
-    url(remixicon-PWIKWM2X.woff2%3Ft=1708865856766) format("woff2"),
-    url(remixicon-FWLTZNBS.woff%3Ft=1708865856766) format("woff"),
-    url(remixicon-UOHJBVLL.ttf%3Ft=1708865856766) format("truetype"),
-    url(remixicon-HO57T2DH.svg%3Ft=1708865856766) format("svg");
+    url(remixicon-ABHKITET.eot) format("embedded-opentype"),
+    url(remixicon-PWIKWM2X.woff2) format("woff2"),
+    url(remixicon-FWLTZNBS.woff) format("woff"),
+    url(remixicon-UOHJBVLL.ttf) format("truetype"),
+    url(remixicon-HO57T2DH.svg) format("svg");
   font-display: swap;
 }
 [class^=ri-],
@@ -8624,9 +8624,9 @@
 /* src/assets/icon-fonts/feather/feather.css */
 @font-face {
   font-family: "feather";
-  src: url(feather-webfont-4QUFNMOI.eot%3Ft=1501841394106);
+  src: url(feather-webfont-4QUFNMOI.eot);
   src:
-    url(feather-webfont-4QUFNMOI.eot%3Ft=1501841394106) format("embedded-opentype"),
+    url(feather-webfont-4QUFNMOI.eot) format("embedded-opentype"),
     url(feather-webfont-XC6AAHIC.ttf) format("truetype"),
     url(feather-webfont-RJOT3FRU.svg) format("svg");
 }
@@ -9436,7 +9436,7 @@
 @font-face {
   font-display: block;
   font-family: "bootstrap-icons";
-  src: url(bootstrap-icons-6QOYJHKE.woff2%3F2820a3852bdb9a5832199cc61cec4e65) format("woff2"), url(bootstrap-icons-JHE3QUSN.woff%3F2820a3852bdb9a5832199cc61cec4e65) format("woff");
+  src: url(bootstrap-icons-6QOYJHKE.woff2) format("woff2"), url(bootstrap-icons-JHE3QUSN.woff) format("woff");
 }
 .bi::before,
 [class^=bi-]::before,
@@ -15608,12 +15608,12 @@
   font-family: "tabler-icons";
   font-style: normal;
   font-weight: 400;
-  src: url(tabler-icons-TNWK4QAX.eot%3Fv2.11.0);
+  src: url(tabler-icons-TNWK4QAX.eot);
   src:
-    url(tabler-icons-TNWK4QAX.eot%3F) format("embedded-opentype"),
-    url(tabler-icons-RQ6HGPNX.woff2%3Fv2.11.0) format("woff2"),
-    url(tabler-icons-ES6OZL4J.woff%3F) format("woff"),
-    url(tabler-icons-ONNXX7BR.ttf%3Fv2.11.0) format("truetype");
+    url(tabler-icons-TNWK4QAX.eot) format("embedded-opentype"),
+    url(tabler-icons-RQ6HGPNX.woff2) format("woff2"),
+    url(tabler-icons-ES6OZL4J.woff) format("woff"),
+    url(tabler-icons-ONNXX7BR.ttf) format("truetype");
 }
 .ti {
   font-family: "tabler-icons" !important;
@@ -32084,7 +32084,7 @@
   font-display: auto;
   src: url(la-brands-400-JDUJSY44.eot);
   src:
-    url(la-brands-400-JDUJSY44.eot%3F) format("embedded-opentype"),
+    url(la-brands-400-JDUJSY44.eot) format("embedded-opentype"),
     url(la-brands-400-CIWECNZM.woff2) format("woff2"),
     url(la-brands-400-D3A7B5PJ.woff) format("woff"),
     url(la-brands-400-INB5BQB2.ttf) format("truetype"),
@@ -32100,7 +32100,7 @@
   font-display: auto;
   src: url(la-regular-400-PNT4KM2T.eot);
   src:
-    url(la-regular-400-PNT4KM2T.eot%3F) format("embedded-opentype"),
+    url(la-regular-400-PNT4KM2T.eot) format("embedded-opentype"),
     url(la-regular-400-X6VKWRSW.woff2) format("woff2"),
     url(la-regular-400-6RPJSTIW.woff) format("woff"),
     url(la-regular-400-34F2J7YZ.ttf) format("truetype"),
@@ -32117,7 +32117,7 @@
   font-display: auto;
   src: url(la-solid-900-QVUSAB64.eot);
   src:
-    url(la-solid-900-QVUSAB64.eot%3F) format("embedded-opentype"),
+    url(la-solid-900-QVUSAB64.eot) format("embedded-opentype"),
     url(la-solid-900-RZOHS333.woff2) format("woff2"),
     url(la-solid-900-PXMBKEUD.woff) format("woff"),
     url(la-solid-900-LAWDUD4I.ttf) format("truetype"),
@@ -34303,7 +34303,7 @@
     url(boxicons-AQ5N6WP7.woff2) format("woff2"),
     url(boxicons-5JNJQPUP.woff) format("woff"),
     url(boxicons-GDR4JU3X.ttf) format("truetype"),
-    url(boxicons-NNFHLMOR.svg%3F) format("svg");
+    url(boxicons-NNFHLMOR.svg) format("svg");
 }
 .bx {
   font-family: "boxicons" !important;
