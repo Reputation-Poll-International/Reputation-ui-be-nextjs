@@ -2,12 +2,17 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '../context/ThemeContext';
+import { getAuthUser, logoutUser } from '@/lib/auth';
 
 export default function Header() {
+  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLLIElement>(null);
+  const user = getAuthUser();
+  const profileImage = user?.avatar_url || '/images/faces/12.jpg';
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -20,6 +25,12 @@ export default function Header() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleLogout = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    logoutUser();
+    router.replace('/login');
+  };
 
   const handleSidebarToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -127,7 +138,7 @@ export default function Header() {
               onClick={(e) => { e.preventDefault(); setProfileOpen(!profileOpen); }}
             >
               <div>
-                <img src="/images/faces/12.jpg" alt="profile" className="header-link-icon rounded-circle" width="32" height="32" />
+                <img src={profileImage} alt="profile" className="header-link-icon rounded-circle" width="32" height="32" />
               </div>
             </a>
             <div className={`main-header-dropdown dropdown-menu pt-0 overflow-hidden header-profile-dropdown dropdown-menu-end ${profileOpen ? 'show' : ''}`} style={{ position: 'absolute', right: 0, top: '100%' }}>
@@ -141,12 +152,12 @@ export default function Header() {
                 <div className="d-flex align-items-start gap-2">
                   <div className="lh-1">
                     <span className="avatar avatar-sm bg-primary-transparent avatar-rounded">
-                      <img src="/images/faces/12.jpg" alt="" width="32" height="32" className="rounded-circle" />
+                      <img src={profileImage} alt="" width="32" height="32" className="rounded-circle" />
                     </span>
                   </div>
                   <div>
-                    <span className="d-block fw-semibold lh-1">User Name</span>
-                    <span className="text-muted fs-12">user@bizreputation.ai</span>
+                    <span className="d-block fw-semibold lh-1">{user?.name || 'User Name'}</span>
+                    <span className="text-muted fs-12">{user?.email || 'user@bizreputation.ai'}</span>
                   </div>
                 </div>
               </div>
@@ -163,7 +174,7 @@ export default function Header() {
                   </Link>
                 </li>
                 <li>
-                  <Link className="dropdown-item d-flex align-items-center" href="/login" onClick={() => setProfileOpen(false)}>
+                  <Link className="dropdown-item d-flex align-items-center" href="/login" onClick={handleLogout}>
                     <i className="ri-logout-box-line me-2"></i>Log Out
                   </Link>
                 </li>

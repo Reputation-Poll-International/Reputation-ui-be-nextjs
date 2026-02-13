@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { ThemeProvider } from "./context/ThemeContext";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
@@ -27,7 +26,6 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
         </ThemeProvider>
-        <Script src="/js/defaultmenu.min.js" strategy="afterInteractive" />
       </body>
     </html>
   );

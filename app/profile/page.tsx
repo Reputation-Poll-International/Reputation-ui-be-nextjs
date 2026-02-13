@@ -2,8 +2,14 @@
 
 import DashboardLayout from '../components/DashboardLayout';
 import Link from 'next/link';
+import { getAuthUser } from '@/lib/auth';
 
 export default function ProfilePage() {
+  const user = getAuthUser();
+  const profileImage = user?.avatar_url || '/images/faces/12.jpg';
+  const displayName = user?.name || 'John Doe';
+  const displayEmail = user?.email || 'user@bizreputation.ai';
+
   return (
     <DashboardLayout>
       <div className="d-flex align-items-center justify-content-between mb-4">
@@ -19,16 +25,16 @@ export default function ProfilePage() {
       <div className="row">
         <div className="col-lg-4">
           {/* Profile Card */}
-          <div className="card custom-card">
-            <div className="card-body text-center p-5">
-              <div className="avatar avatar-xxl rounded-circle mx-auto mb-3" style={{ width: '120px', height: '120px' }}>
-                <img src="/images/faces/12.jpg" alt="Profile" className="rounded-circle w-100 h-100" style={{ objectFit: 'cover' }} />
+            <div className="card custom-card">
+              <div className="card-body text-center p-5">
+                <div className="avatar avatar-xxl rounded-circle mx-auto mb-3" style={{ width: '120px', height: '120px' }}>
+                  <img src={profileImage} alt="Profile" className="rounded-circle w-100 h-100" style={{ objectFit: 'cover' }} />
+                </div>
+                <h4 className="fw-semibold mb-1">{displayName}</h4>
+                <p className="text-muted mb-3">{displayEmail}</p>
+                <span className="badge bg-success-transparent text-success">Pro Plan</span>
               </div>
-              <h4 className="fw-semibold mb-1">John Doe</h4>
-              <p className="text-muted mb-3">user@bizreputation.ai</p>
-              <span className="badge bg-success-transparent text-success">Pro Plan</span>
             </div>
-          </div>
 
           {/* Account Stats */}
           <div className="card custom-card">
@@ -66,11 +72,11 @@ export default function ProfilePage() {
               <div className="row g-4">
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Full Name</label>
-                  <p className="mb-0 fw-medium">John Doe</p>
+                  <p className="mb-0 fw-medium">{displayName}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Email Address</label>
-                  <p className="mb-0 fw-medium">user@bizreputation.ai</p>
+                  <p className="mb-0 fw-medium">{displayEmail}</p>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label text-muted small">Phone Number</label>

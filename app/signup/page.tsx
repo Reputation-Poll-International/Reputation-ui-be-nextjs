@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { isAuthenticated, loginWithGoogleCode, registerUser } from '@/lib/auth';
+import { requestGoogleAuthCode } from '@/lib/googleAuth';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -13,6 +15,14 @@ export default function SignupPage() {
     confirmPassword: '',
     agreeTerms: false,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -22,23 +32,56 @@ export default function SignupPage() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match.');
       return;
     }
     if (!formData.agreeTerms) {
-      alert('Please agree to the Terms & Conditions');
+      setError('Please agree to the Terms & Conditions.');
       return;
     }
-    // In production, this would call an API
-    router.push('/dashboard');
+
+    try {
+      setIsSubmitting(true);
+      await registerUser({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        password_confirmation: formData.confirmPassword,
+      });
+      router.replace('/dashboard');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Unable to create account right now.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleGoogleSignUp = () => {
-    console.log('Google Sign-Up clicked');
-    router.push('/dashboard');
+  const handleGoogleSignUp = async () => {
+    setError(null);
+
+    try {
+      setIsSubmitting(true);
+      const code = await requestGoogleAuthCode();
+      await loginWithGoogleCode(code);
+      router.replace('/dashboard');
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Google sign in failed.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,6 +101,12 @@ export default function SignupPage() {
                 <p className="text-center text-muted fs-14 mb-4">Sign up for a BizReputation AI account</p>
 
                 <form onSubmit={handleSubmit}>
+                  {error && (
+                    <div className="alert alert-danger py-2" role="alert">
+                      {error}
+                    </div>
+                  )}
+
                   <div className="mb-3">
                     <label htmlFor="name" className="form-label fw-medium">Full Name</label>
                     <input
@@ -129,13 +178,15 @@ export default function SignupPage() {
                     </label>
                   </div>
 
-                  <button type="submit" className="btn btn-primary btn-wave w-100 mb-3">Create Account</button>
+                  <button type="submit" className="btn btn-primary btn-wave w-100 mb-3" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating account...' : 'Create Account'}
+                  </button>
 
                   <div className="divider">
                     <span>OR</span>
                   </div>
 
-                  <button type="button" className="google-btn mb-3" onClick={handleGoogleSignUp}>
+                  <button type="button" className="google-btn mb-3" onClick={handleGoogleSignUp} disabled={isSubmitting}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
