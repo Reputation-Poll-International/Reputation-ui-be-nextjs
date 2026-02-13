@@ -108,8 +108,25 @@ const footerItems = [
 export default function Sidebar() {
   const pathname = usePathname();
 
+  const closeMobileSidebar = () => {
+    if (typeof window === 'undefined' || window.innerWidth >= 992) {
+      return;
+    }
+
+    const html = document.documentElement;
+    const sidebar = document.querySelector('.app-sidebar');
+    const overlay = document.getElementById('responsive-overlay');
+
+    html.setAttribute('data-toggled', 'close');
+    html.removeAttribute('data-icon-overlay');
+    overlay?.classList.remove('active');
+    sidebar?.classList.remove('open');
+    sidebar?.classList.remove('active');
+  };
+
   const handleSignOut = async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
+    closeMobileSidebar();
     try {
       await logoutUser();
       // Force a small delay to ensure all storage events are processed
@@ -138,6 +155,7 @@ export default function Sidebar() {
                 <Link
                   href={item.href}
                   className={`side-menu__item ${pathname === item.href ? 'active' : ''}`}
+                  onClick={closeMobileSidebar}
                 >
                   {item.icon}
                   <span className="side-menu__label d-inline-flex align-items-center">
@@ -173,6 +191,7 @@ export default function Sidebar() {
                   <Link
                     href={item.href}
                     className={`side-menu__item ${pathname === item.href ? 'active' : ''}`}
+                    onClick={closeMobileSidebar}
                   >
                     {item.icon}
                     <span className="side-menu__label">{item.label}</span>

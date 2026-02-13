@@ -10,9 +10,21 @@ export default function Header() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
   const dropdownRef = useRef<HTMLLIElement>(null);
   const user = getAuthUser();
   const profileImage = user?.avatar_url || '/images/faces/12.jpg';
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobileView(window.innerWidth < 992);
+    };
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -100,7 +112,7 @@ export default function Header() {
               </Link>
             </div>
           </div>
-          <div className="header-element">
+          <div className={`header-element ${isMobileView && profileOpen ? 'd-none' : ''}`}>
             <a
               aria-label="Hide Sidebar"
               className="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle"
