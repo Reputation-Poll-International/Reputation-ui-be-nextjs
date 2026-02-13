@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '../components/DashboardLayout';
-import Link from 'next/link';
 
 const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -514,9 +513,9 @@ export default function AuditResultsPage() {
           <button className="btn btn-outline-primary" onClick={() => window.print()}>
             <i className="ri-printer-line me-2"></i>Print Report
           </button>
-          <Link href="/start-audit" className="btn btn-primary">
+          {/* <Link href="/start-audit" className="btn btn-primary">
             <i className="ri-refresh-line me-2"></i>New AI Audit
-          </Link>
+          </Link> */}
         </div>
       </div>
 
