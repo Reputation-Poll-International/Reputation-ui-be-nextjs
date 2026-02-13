@@ -4,6 +4,10 @@ export interface AuthUser {
   email: string;
   registration_provider?: string | null;
   avatar_url?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  location?: string | null;
+  notification_preferences?: Record<string, boolean> | null;
   last_login_at?: string | null;
   last_login_provider?: string | null;
 }
@@ -31,13 +35,21 @@ async function postAuth<TPayload extends Record<string, unknown>>(
   path: string,
   payload: TPayload
 ): Promise<AuthApiResponse> {
+  return requestAuth(path, 'POST', payload);
+}
+
+async function requestAuth(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT',
+  payload?: Record<string, unknown>
+): Promise<AuthApiResponse> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
+    method,
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: payload ? JSON.stringify(payload) : undefined,
   });
 
   let data: AuthApiResponse | null = null;
@@ -100,6 +112,45 @@ export async function loginWithGoogleCode(code: string): Promise<AuthUser> {
 
   persistAuthUser(data.user);
   return data.user;
+}
+
+export async function fetchProfile(userId: number): Promise<AuthUser> {
+  const data = await requestAuth(`/auth/profile?user_id=${encodeURIComponent(String(userId))}`, 'GET');
+
+  if (!data.user) {
+    throw new Error('Profile fetch succeeded but no user was returned.');
+  }
+
+  persistAuthUser(data.user);
+  return data.user;
+}
+
+export async function updateProfile(payload: {
+  user_id: number;
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  company?: string | null;
+  location?: string | null;
+  notification_preferences?: Record<string, boolean>;
+}): Promise<AuthUser> {
+  const data = await requestAuth('/auth/profile', 'PUT', payload);
+
+  if (!data.user) {
+    throw new Error('Profile update succeeded but no user was returned.');
+  }
+
+  persistAuthUser(data.user);
+  return data.user;
+}
+
+export async function changePassword(payload: {
+  user_id: number;
+  current_password: string;
+  password: string;
+  password_confirmation: string;
+}): Promise<void> {
+  await requestAuth('/auth/change-password', 'PUT', payload);
 }
 
 export async function forgotPassword(email: string): Promise<{ resetUrl?: string }> {

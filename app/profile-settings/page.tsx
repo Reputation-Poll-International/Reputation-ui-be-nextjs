@@ -1,24 +1,133 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { changePassword, fetchProfile, getAuthUser, updateProfile } from '@/lib/auth';
+
+type NotificationSettings = {
+  email: boolean;
+  auditComplete: boolean;
+  weeklyReport: boolean;
+  monthlyReport: boolean;
+  recommendations: boolean;
+};
+
+const defaultNotifications: NotificationSettings = {
+  email: true,
+  auditComplete: true,
+  weeklyReport: true,
+  monthlyReport: false,
+  recommendations: true,
+};
+
+type SettingsSection = 'profile' | 'security' | 'notifications' | 'billing';
 
 export default function ProfileSettingsPage() {
+  const [userId, setUserId] = useState<number | null>(null);
+  const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [formData, setFormData] = useState({
-    name: 'John Doe',
-    email: 'user@bizreputation.ai',
-    phone: '+1 (555) 123-4567',
-    company: 'Acme Corp',
-    location: 'San Francisco, CA',
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    location: '',
   });
+  const [notifications, setNotifications] = useState<NotificationSettings>(defaultNotifications);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
-  const [notifications, setNotifications] = useState({
-    email: true,
-    auditComplete: true,
-    weeklyReport: true,
-    monthlyReport: false,
-    recommendations: true,
-  });
+  const hydrateUser = (
+    user: {
+      id: number;
+      name: string;
+      email: string;
+      phone?: string | null;
+      company?: string | null;
+      location?: string | null;
+      notification_preferences?: Record<string, boolean> | null;
+    }
+  ) => {
+    setUserId(user.id);
+    setFormData({
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      company: user.company || '',
+      location: user.location || '',
+    });
+
+    setNotifications({
+      ...defaultNotifications,
+      ...(user.notification_preferences || {}),
+    });
+  };
+
+  useEffect(() => {
+    const currentUser = getAuthUser();
+    if (!currentUser) {
+      return;
+    }
+
+    hydrateUser({
+      id: currentUser.id,
+      name: currentUser.name,
+      email: currentUser.email,
+      phone: currentUser.phone,
+      company: currentUser.company,
+      location: currentUser.location,
+      notification_preferences: currentUser.notification_preferences,
+    });
+
+    const loadLatestProfile = async () => {
+      try {
+        const latest = await fetchProfile(currentUser.id);
+        hydrateUser({
+          id: latest.id,
+          name: latest.name,
+          email: latest.email,
+          phone: latest.phone,
+          company: latest.company,
+          location: latest.location,
+          notification_preferences: latest.notification_preferences,
+        });
+      } catch (err) {
+        if (err instanceof Error) {
+          setProfileError(err.message);
+        }
+      }
+    };
+
+    loadLatestProfile();
+  }, []);
+
+  useEffect(() => {
+    const applyHashSelection = () => {
+      const hash = window.location.hash.replace('#', '');
+      const sections: SettingsSection[] = ['profile', 'security', 'notifications', 'billing'];
+      if (sections.includes(hash as SettingsSection)) {
+        setActiveSection(hash as SettingsSection);
+      }
+    };
+
+    applyHashSelection();
+    window.addEventListener('hashchange', applyHashSelection);
+    return () => window.removeEventListener('hashchange', applyHashSelection);
+  }, []);
+
+  const navItemClassName = (section: SettingsSection) =>
+    `list-group-item list-group-item-action${activeSection === section ? ' active' : ''}`;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -30,14 +139,110 @@ export default function ProfileSettingsPage() {
     setNotifications(prev => ({ ...prev, [name]: checked }));
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert('Profile updated successfully!');
+  const handlePasswordInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSaveNotifications = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Notification preferences saved!');
+    setProfileError(null);
+    setProfileMessage(null);
+
+    if (!userId) {
+      setProfileError('No authenticated user found.');
+      return;
+    }
+
+    try {
+      setIsSavingProfile(true);
+      await updateProfile({
+        user_id: userId,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        company: formData.company || null,
+        location: formData.location || null,
+      });
+      setProfileMessage('Profile updated successfully.');
+    } catch (err) {
+      if (err instanceof Error) {
+        setProfileError(err.message);
+      } else {
+        setProfileError('Unable to update profile right now.');
+      }
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveNotifications = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNotificationError(null);
+    setNotificationMessage(null);
+
+    if (!userId) {
+      setNotificationError('No authenticated user found.');
+      return;
+    }
+
+    try {
+      setIsSavingNotifications(true);
+      await updateProfile({
+        user_id: userId,
+        notification_preferences: notifications,
+      });
+      setNotificationMessage('Notification preferences saved.');
+    } catch (err) {
+      if (err instanceof Error) {
+        setNotificationError(err.message);
+      } else {
+        setNotificationError('Unable to save notification preferences right now.');
+      }
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordMessage(null);
+
+    if (!userId) {
+      setPasswordError('No authenticated user found.');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+
+    try {
+      setIsSavingPassword(true);
+      await changePassword({
+        user_id: userId,
+        current_password: passwordData.currentPassword,
+        password: passwordData.newPassword,
+        password_confirmation: passwordData.confirmPassword,
+      });
+
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordMessage('Password updated successfully.');
+    } catch (err) {
+      if (err instanceof Error) {
+        setPasswordError(err.message);
+      } else {
+        setPasswordError('Unable to update password right now.');
+      }
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   return (
@@ -53,18 +258,34 @@ export default function ProfileSettingsPage() {
           <div className="card custom-card">
             <div className="card-body p-0">
               <ul className="list-group list-group-flush">
-                <li className="list-group-item active">
+                <a
+                  href="#profile"
+                  className={navItemClassName('profile')}
+                  onClick={() => setActiveSection('profile')}
+                >
                   <i className="ri-user-line me-2"></i>Profile
-                </li>
-                <li className="list-group-item">
+                </a>
+                <a
+                  href="#security"
+                  className={navItemClassName('security')}
+                  onClick={() => setActiveSection('security')}
+                >
                   <i className="ri-lock-line me-2"></i>Security
-                </li>
-                <li className="list-group-item">
+                </a>
+                <a
+                  href="#notifications"
+                  className={navItemClassName('notifications')}
+                  onClick={() => setActiveSection('notifications')}
+                >
                   <i className="ri-notification-line me-2"></i>Notifications
-                </li>
-                <li className="list-group-item">
+                </a>
+                <a
+                  href="#billing"
+                  className={navItemClassName('billing')}
+                  onClick={() => setActiveSection('billing')}
+                >
                   <i className="ri-bank-card-line me-2"></i>Billing
-                </li>
+                </a>
               </ul>
             </div>
           </div>
@@ -72,12 +293,23 @@ export default function ProfileSettingsPage() {
 
         <div className="col-lg-9">
           {/* Profile Settings */}
-          <div className="card custom-card">
+          <div id="profile" className="card custom-card" style={{ scrollMarginTop: '90px' }}>
             <div className="card-header">
               <h5 className="card-title mb-0">Profile Information</h5>
             </div>
             <div className="card-body">
               <form onSubmit={handleSaveProfile}>
+                {profileError && (
+                  <div className="alert alert-danger py-2" role="alert">
+                    {profileError}
+                  </div>
+                )}
+                {profileMessage && (
+                  <div className="alert alert-success py-2" role="alert">
+                    {profileMessage}
+                  </div>
+                )}
+
                 <div className="row g-3">
                   <div className="col-md-6">
                     <label className="form-label">Full Name</label>
@@ -131,47 +363,98 @@ export default function ProfileSettingsPage() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <button type="submit" className="btn btn-primary">Save Changes</button>
+                  <button type="submit" className="btn btn-primary" disabled={isSavingProfile}>
+                    {isSavingProfile ? 'Saving...' : 'Save Changes'}
+                  </button>
                 </div>
               </form>
             </div>
           </div>
 
           {/* Password */}
-          <div className="card custom-card">
+          <div id="security" className="card custom-card" style={{ scrollMarginTop: '90px' }}>
             <div className="card-header">
               <h5 className="card-title mb-0">Change Password</h5>
             </div>
             <div className="card-body">
-              <form>
+              <form onSubmit={handleUpdatePassword}>
+                {passwordError && (
+                  <div className="alert alert-danger py-2" role="alert">
+                    {passwordError}
+                  </div>
+                )}
+                {passwordMessage && (
+                  <div className="alert alert-success py-2" role="alert">
+                    {passwordMessage}
+                  </div>
+                )}
+
                 <div className="row g-3">
                   <div className="col-md-12">
                     <label className="form-label">Current Password</label>
-                    <input type="password" className="form-control" placeholder="Enter current password" />
+                    <input
+                      type="password"
+                      className="form-control"
+                      name="currentPassword"
+                      placeholder="Enter current password"
+                      value={passwordData.currentPassword}
+                      onChange={handlePasswordInputChange}
+                      required
+                    />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label">New Password</label>
-                    <input type="password" className="form-control" placeholder="Enter new password" />
+                    <input
+                      type="password"
+                      className="form-control"
+                      name="newPassword"
+                      placeholder="Enter new password"
+                      value={passwordData.newPassword}
+                      onChange={handlePasswordInputChange}
+                      minLength={8}
+                      required
+                    />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label">Confirm New Password</label>
-                    <input type="password" className="form-control" placeholder="Confirm new password" />
+                    <input
+                      type="password"
+                      className="form-control"
+                      name="confirmPassword"
+                      placeholder="Confirm new password"
+                      value={passwordData.confirmPassword}
+                      onChange={handlePasswordInputChange}
+                      required
+                    />
                   </div>
                 </div>
                 <div className="mt-4">
-                  <button type="submit" className="btn btn-primary">Update Password</button>
+                  <button type="submit" className="btn btn-primary" disabled={isSavingPassword}>
+                    {isSavingPassword ? 'Updating...' : 'Update Password'}
+                  </button>
                 </div>
               </form>
             </div>
           </div>
 
           {/* Notifications */}
-          <div className="card custom-card">
+          <div id="notifications" className="card custom-card" style={{ scrollMarginTop: '90px' }}>
             <div className="card-header">
               <h5 className="card-title mb-0">Notification Preferences</h5>
             </div>
             <div className="card-body">
               <form onSubmit={handleSaveNotifications}>
+                {notificationError && (
+                  <div className="alert alert-danger py-2" role="alert">
+                    {notificationError}
+                  </div>
+                )}
+                {notificationMessage && (
+                  <div className="alert alert-success py-2" role="alert">
+                    {notificationMessage}
+                  </div>
+                )}
+
                 <div className="mb-3">
                   <div className="form-check form-switch mb-3">
                     <input
@@ -253,36 +536,27 @@ export default function ProfileSettingsPage() {
                     </label>
                   </div>
                 </div>
-                <button type="submit" className="btn btn-primary">Save Preferences</button>
+                <button type="submit" className="btn btn-primary" disabled={isSavingNotifications}>
+                  {isSavingNotifications ? 'Saving...' : 'Save Preferences'}
+                </button>
               </form>
             </div>
           </div>
 
-          {/* Danger Zone */}
-          <div className="card custom-card border-danger">
-            <div className="card-header bg-danger-transparent">
-              <h5 className="card-title mb-0 text-danger">Danger Zone</h5>
+          {/* Billing */}
+          <div id="billing" className="card custom-card" style={{ scrollMarginTop: '90px' }}>
+            <div className="card-header">
+              <h5 className="card-title mb-0">Billing</h5>
             </div>
             <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                  <strong>Deactivate Account</strong>
-                  <br />
-                  <small className="text-muted">Temporarily disable your account</small>
-                </div>
-                <button className="btn btn-outline-warning">Deactivate</button>
-              </div>
-              <hr />
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>Delete Account</strong>
-                  <br />
-                  <small className="text-muted">Permanently delete your account and all data</small>
-                </div>
-                <button className="btn btn-danger">Delete Account</button>
-              </div>
+              <p className="text-muted mb-0">
+                Billing management is not configured yet. This section is ready for plan, invoices,
+                and payment methods.
+              </p>
             </div>
           </div>
+
+          {/* Danger Zone temporarily disabled */}
         </div>
       </div>
     </DashboardLayout>
