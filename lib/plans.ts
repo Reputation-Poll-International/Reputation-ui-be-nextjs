@@ -77,17 +77,41 @@ export interface SubscriptionResponse {
 
 export interface CheckoutSessionResponse {
   status: 'success';
-  mode: 'stripe_checkout' | 'free_plan';
+  mode: 'stripe_checkout' | 'free_plan' | 'entitlement_reuse';
   message: string;
   session_id?: string;
   checkout_url?: string;
   subscription?: UserSubscription | null;
+  entitlement_expires_at?: string | null;
 }
 
 export interface CheckoutConfirmationResponse {
   status: 'success';
   message: string;
   subscription: UserSubscription;
+}
+
+export interface PaymentHistoryRecord {
+  id: number;
+  provider: string;
+  transaction_type: 'charge' | 'refund' | 'credit';
+  status: 'paid' | 'pending' | 'failed' | 'refunded';
+  amount: number;
+  currency: string;
+  billing_interval: 'monthly' | 'annual' | null;
+  paid_at: string | null;
+  created_at: string | null;
+  provider_transaction_id: string | null;
+  provider_session_id: string | null;
+  entitlement_starts_at: string | null;
+  entitlement_expires_at: string | null;
+  plan: UserPlan | null;
+}
+
+export interface PaymentHistoryResponse {
+  status: 'success';
+  total: number;
+  payments: PaymentHistoryRecord[];
 }
 
 const API_BASE_URL = (
@@ -212,6 +236,23 @@ export async function fetchUserSubscription(payload: {
   return requestPlans<SubscriptionResponse>(
     `/user/subscription${query}`,
     'Unable to load subscription details right now.'
+  );
+}
+
+export async function fetchUserPaymentHistory(payload: {
+  user_id?: number;
+  lookup_email?: string;
+  limit?: number;
+}): Promise<PaymentHistoryResponse> {
+  const params = new URLSearchParams();
+  if (payload.user_id) params.set('user_id', String(payload.user_id));
+  if (payload.lookup_email) params.set('lookup_email', payload.lookup_email);
+  if (payload.limit) params.set('limit', String(payload.limit));
+
+  const query = params.toString();
+  return requestPlans<PaymentHistoryResponse>(
+    `/user/payment-history${query ? `?${query}` : ''}`,
+    'Unable to load payment history right now.'
   );
 }
 

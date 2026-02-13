@@ -54,6 +54,18 @@ const menuItems = [
     ),
   },
   {
+    href: '/payment-history',
+    label: 'Payment History',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="side-menu__icon" viewBox="0 0 256 256" width="20" height="20">
+        <rect x="40" y="56" width="176" height="144" rx="8" opacity="0.2" fill="currentColor"/>
+        <rect x="40" y="56" width="176" height="144" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+        <line x1="88" y1="104" x2="168" y2="104" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+        <line x1="88" y1="152" x2="136" y2="152" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16"/>
+      </svg>
+    ),
+  },
+  {
     href: '/support',
     label: 'Support',
     icon: (

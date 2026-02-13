@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import Link from 'next/link';
 import { fetchProfile, getAuthUser, type AuthUser } from '@/lib/auth';
-import { fetchUserCurrentPlan, type CurrentPlanResponse } from '@/lib/plans';
+import {
+  fetchUserCurrentPlan,
+  fetchUserPaymentHistory,
+  type CurrentPlanResponse,
+  type PaymentHistoryRecord,
+} from '@/lib/plans';
 import { fetchAuditHistory, type AuditHistoryRecord } from '@/lib/reputation';
 
 function formatDate(value: string | null): string {
@@ -29,6 +34,34 @@ function formatPaymentMethod(value: string | null): string {
     .join(' ');
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) return '--';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatAmount(amount: number, currency: string): string {
+  const normalizedCurrency = currency?.toUpperCase() || 'USD';
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: normalizedCurrency,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${normalizedCurrency}`;
+  }
+}
+
 function formatPlanPrice(data: CurrentPlanResponse | null): string {
   const plan = data?.plan;
   const billingInterval = data?.subscription?.billing_interval === 'annual' ? 'annual' : 'monthly';
@@ -46,7 +79,9 @@ export default function ProfilePage() {
   const [records, setRecords] = useState<AuditHistoryRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [planData, setPlanData] = useState<CurrentPlanResponse | null>(null);
+  const [payments, setPayments] = useState<PaymentHistoryRecord[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -60,6 +95,7 @@ export default function ProfilePage() {
 
       try {
         setPlanError(null);
+        setPaymentError(null);
         const [latestProfile, history] = await Promise.all([
           fetchProfile(currentUser.id),
           fetchAuditHistory({ user_id: currentUser.id, limit: 200 }),
@@ -68,15 +104,25 @@ export default function ProfilePage() {
         setUser(latestProfile);
         setRecords(history.audits);
 
-        try {
-          const currentPlan = await fetchUserCurrentPlan({ user_id: currentUser.id });
-          setPlanData(currentPlan);
-        } catch (planErr) {
-          if (planErr instanceof Error) {
-            setPlanError(planErr.message);
-          } else {
-            setPlanError('Unable to load subscription details right now.');
-          }
+        const [planResult, paymentResult] = await Promise.allSettled([
+          fetchUserCurrentPlan({ user_id: currentUser.id }),
+          fetchUserPaymentHistory({ user_id: currentUser.id, limit: 20 }),
+        ]);
+
+        if (planResult.status === 'fulfilled') {
+          setPlanData(planResult.value);
+        } else if (planResult.reason instanceof Error) {
+          setPlanError(planResult.reason.message);
+        } else {
+          setPlanError('Unable to load subscription details right now.');
+        }
+
+        if (paymentResult.status === 'fulfilled') {
+          setPayments(paymentResult.value.payments);
+        } else if (paymentResult.reason instanceof Error) {
+          setPaymentError(paymentResult.reason.message);
+        } else {
+          setPaymentError('Unable to load payment history right now.');
         }
       } catch (err) {
         if (err instanceof Error) {
@@ -180,6 +226,12 @@ export default function ProfilePage() {
       {planError && (
         <div className="alert alert-warning" role="alert">
           {planError}
+        </div>
+      )}
+
+      {paymentError && (
+        <div className="alert alert-warning" role="alert">
+          {paymentError}
         </div>
       )}
 
@@ -313,6 +365,62 @@ export default function ProfilePage() {
                   <label className="form-label text-muted small">Subscription Status</label>
                   <p className="mb-0 fw-medium text-capitalize">{subscriptionStatus}</p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment History */}
+          <div className="card custom-card">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Payment History</h5>
+              <span className="badge bg-light text-dark">{payments.length} records</span>
+            </div>
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th>Date & Time</th>
+                      <th>Plan</th>
+                      <th>Amount</th>
+                      <th>Interval</th>
+                      <th>Expires On</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td>{formatDateTime(payment.paid_at || payment.created_at)}</td>
+                        <td>{payment.plan?.name || '--'}</td>
+                        <td>{formatAmount(payment.amount, payment.currency)}</td>
+                        <td className="text-capitalize">{payment.billing_interval || '--'}</td>
+                        <td>{formatDateTime(payment.entitlement_expires_at)}</td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              payment.status === 'paid'
+                                ? 'bg-success-transparent text-success'
+                                : payment.status === 'pending'
+                                  ? 'bg-warning-transparent text-warning'
+                                  : 'bg-danger-transparent text-danger'
+                            }`}
+                          >
+                            {payment.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {payments.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center text-muted py-4">
+                          No payments yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -21,6 +21,19 @@ function formatPrice(value: number): string {
   return value.toFixed(2);
 }
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function toFeatureList(plan: UserPlan): string[] {
   const features: string[] = [];
   const maxAudits = plan.features.max_audits_per_month;
@@ -215,9 +228,15 @@ export default function PricingPage() {
         billing_period: billingPeriod,
       });
 
-      if (response.mode === 'free_plan') {
+      if (response.mode === 'free_plan' || response.mode === 'entitlement_reuse') {
         setCurrentPlanId(plan.id);
-        setSuccessMessage(response.message || 'Your plan has been updated.');
+        if (response.mode === 'entitlement_reuse') {
+          setSuccessMessage(
+            `${response.message || 'Switched back to your paid plan.'} Access valid until ${formatDateTime(response.entitlement_expires_at)}.`
+          );
+        } else {
+          setSuccessMessage(response.message || 'Your plan has been updated.');
+        }
         return;
       }
 
@@ -240,6 +259,11 @@ export default function PricingPage() {
   return (
     <DashboardLayout>
       <div className="text-center mb-5">
+        <div className="d-flex justify-content-end mb-3">
+          <Link href="/payment-history" className="btn btn-outline-primary btn-sm">
+            <i className="ri-file-list-3-line me-1"></i>View Payment History
+          </Link>
+        </div>
         <h1 className="page-title fw-bold mb-2">Choose Your Plan</h1>
         <p className="text-muted mb-4">Select the perfect plan for your business needs</p>
 
