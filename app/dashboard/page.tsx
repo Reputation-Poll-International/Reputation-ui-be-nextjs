@@ -308,7 +308,7 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {plansActive === true && usage?.audits_limit !== null && (
+              {plansActive === true && usage && usage.audits_limit !== null && (
                 <div>
                   <div className="progress progress-sm mb-2">
                     <div

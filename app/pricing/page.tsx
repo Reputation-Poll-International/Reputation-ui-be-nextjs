@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
 import { getAuthUser } from '@/lib/auth';
@@ -64,7 +64,7 @@ function toFeatureList(plan: UserPlan): string[] {
   return features;
 }
 
-export default function PricingPage() {
+function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
@@ -429,5 +429,13 @@ export default function PricingPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>}>
+      <PricingContent />
+    </Suspense>
   );
 }
